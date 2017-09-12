@@ -16,6 +16,10 @@ class KeyRequest(PacketType):  # packet for remote key requesting car's challeng
     DEFINITION_VERSION = "1.0"
     FIELDS = []
 
+class Error(PacketType):  # packet for remote key requesting car's challenge
+    DEFINITION_IDENTIFIER = "lab2b.student_s.error"
+    DEFINITION_VERSION = "1.0"
+    FIELDS = []
 
 class CarChallenge(PacketType):  # packet of car's challenge.
     DEFINITION_IDENTIFIER = "lab2b.student_s.CarChallenge"
@@ -40,47 +44,47 @@ def TheFunc(t,rand):  # this function imitate an encoding function, which key an
 
 class EchoClientProtocol(asyncio.Protocol):
     def __init__(self):
-        self._deserializer=PacketType.Deserializer()
         self.transport=None
 
     def connection_made(self, transport):
         self.transport=transport
-        packet1=KeyRequest()
-        transport.write(packet1.__serialize__())
-        self._deserializer=PacketType.Deserializer()
+        self._deserializer = PacketType.Deserializer()
 
-    def dataReceived(self, data):
+    def start(self,pkt):
+        self.transport.write(pkt.__serialize__())
+
+
+    def data_received(self, data):
         self._deserializer.update(data)
         for pkt in self._deserializer.nextPackets():
-            print(pkt)
+            print('{0}:{1}'.format('packet recived in client',pkt))
             if pkt!=None:
                 if pkt.DEFINITION_IDENTIFIER=="lab2b.student_s.CarChallenge":
                     packet3=KeyResp()
                     packet3.resp=TheFunc(pkt.time,pkt.randnum)
                     packet3.ID=3
                     self.transport.write(packet3.__serialize__())
-
+                else: self.transport = None
 
     def connection_lost(self, exc):
+        print("Clinet connection Lost:".format(exc))
         self.transport=None
-        print('3.The server closed the connection')
-        print('3.Stop the event loop')
 
 class EchoServerProtocol(asyncio.Protocol):
     def __init__(self):
-        self._deserializer=PacketType.Deserializer()
         self.transport=None
 
     def connection_made(self, transport):
         self.transport = transport
         self._deserializer=PacketType.Deserializer()
 
-    def dataReceived(self, data):
+
+    def data_received(self, data):
         self._deserializer.update(data)
         global Time
         global RandNum
         for pkt in self._deserializer.nextPackets():
-            print(pkt)
+            print('{0}:{1}'.format('packet recived in SERVER', pkt))
             if pkt!=None:
                 if pkt.DEFINITION_IDENTIFIER=="lab2b.student_s.KeyRequest":
                     packet2=CarChallenge()
@@ -90,21 +94,21 @@ class EchoServerProtocol(asyncio.Protocol):
                     packet2.randnum=RandNum
                     packet2.ID=2
                     self.transport.write(packet2.__serialize__())
-                if pkt.DEFINITION_IDENTIFIER=="lab2b.student_s.KeyResp":
+                elif pkt.DEFINITION_IDENTIFIER=="lab2b.student_s.KeyResp":
                     print(pkt.resp,"----",TheFunc(Time,RandNum))
                     if(pkt.resp==str(TheFunc(Time,RandNum))):
                         print("Car's doors open")
                     else: print("Not open")
-                else: print("no proper packet")
-                
-        print('7.Close the client socket')
+                else: self.transport = None
 
     def connection_lost(self, exc):
+        print("Server connection Lost:".format(exc))
         self.transport = None
-        print('8.Closed the connection')
 
 def basicUnitTest():
+    print('Begin')
     asyncio.set_event_loop(TestLoopEx())
+
 
     client=EchoClientProtocol()
     server=EchoServerProtocol()
@@ -115,6 +119,10 @@ def basicUnitTest():
 
     server.connection_made(transportToClient)
     client.connection_made(transportToServer)
+
+    pkt=KeyRequest()
+    client.start(pkt)
+
 
 if __name__=="__main__":
     basicUnitTest()
