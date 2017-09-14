@@ -47,6 +47,7 @@ class ClientProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.transport=transport
         self.transport.write(KeyRequest().__serialize__())
+        print("send:{}".format(KeyRequest().__serialize__()) )
         self._deserializer = PacketType.Deserializer()
 
     def start(self):
@@ -71,9 +72,12 @@ class ClientProtocol(asyncio.Protocol):
         self.transport=None
 
 loop = asyncio.get_event_loop()
+loop.set_debug(enabled=True)
 
 coro = playground.getConnector().create_playground_connection(lambda:ClientProtocol(),'20174.1.1.1',
-                                                              101)
-loop.run_until_complete(coro)
+                                                              55656)
+transport,client=loop.run_until_complete(coro)
+# client.start()
+
 loop.run_forever()
 loop.close()
