@@ -44,6 +44,8 @@ def getRootCert():
 
     return root_cert
 
+def verifyCert(rootCert, interCert, Cert):
+    return False
 
 
 
