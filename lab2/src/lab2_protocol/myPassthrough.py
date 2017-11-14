@@ -36,7 +36,8 @@ class PassThroughc1(StackingProtocol):
         self.S_Nonce = 0
         self.S_Certs = []
         self.C_Certs = getCertForAddr()
-        self.Pks = [] #shared key
+        self.Pkc=os.urandom(16)
+        self.Pks = [] #from server, used to generate keys
         self.C_crtObj = crypto.load_certificate(crypto.FILETYPE_PEM, self.C_Certs[0])
         self.PubK=self.C_crtObj.get_pubkey()
         self.C_pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, self.PubK)
@@ -73,13 +74,12 @@ class PassThroughc1(StackingProtocol):
                 pubKeyObject = crtObj.get_pubkey()
                 pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, pubKeyObject)
                 key = RSA.importKey(pubKeyString)
-                print(pubKeyString)
                 # print(key.can_encrypt())
                 # print(key.can_sign())
                 # print(key.has_private())
                 public_key = key.publickey()
-
-                cipher = public_key.encrypt(self.C_pubKeyString,32)
+                cipher = public_key.encrypt(self.Pkc,32)
+                print(self.Pkc)
                 keyExchange.PreKey = cipher[0]
                 keyExchange.NoncePlusOne = self.S_Nonce + 1
                 self.state = 1
@@ -135,8 +135,13 @@ class PassThroughs1(StackingProtocol):
         self.state = 0
         self.C_Nonce = 0
         self.S_Nonce = 0
-        self.S_Certs = []
+        self.S_Certs = getCertForAddr()
         self.C_Certs = []
+        self.Pks = os.urandom(16)
+        self.S_crtObj = crypto.load_certificate(crypto.FILETYPE_PEM, self.S_Certs[0])
+        self.SPubK = self.S_crtObj.get_pubkey()
+        self.SPriK=getPrivateKeyForAddr()
+        self.S_pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, self.SPubK)
         self.hashresult = hashlib.sha1()
 
     def connection_made(self, transport):
@@ -147,14 +152,14 @@ class PassThroughs1(StackingProtocol):
         self._deserializer.update(data)
         for pkt in self._deserializer.nextPackets():
             if isinstance(pkt, PlsHello) and self.state == 0:
+                print("server: PlsHello received")
                 self.hashresult.update(bytes(pkt.__serialize__()))
                 self.C_Nonce = pkt.Nonce
                 self.C_Certs = pkt.Certs
                 helloPkt = PlsHello()
                 self.S_Nonce = random.getrandbits(64)
-
                 helloPkt.Nonce = self.S_Nonce
-                helloPkt.Certs = getCertForAddr()
+                helloPkt.Certs = self.S_Certs
                 self.hashresult.update(bytes(helloPkt.__serialize__()))
                 self.state = 1
                 self.transport.write(helloPkt.__serialize__())
@@ -164,9 +169,16 @@ class PassThroughs1(StackingProtocol):
                 # check nc
                 if pkt.NoncePlusOne == self.S_Nonce + 1:
                     print("server: check NC+1")
-                    self.Pks = pkt.PreKey
+                    priK=RSA.importKey(self.SPriK)
+                    self.Pkc=priK.decrypt(pkt.PreKey)
                     keyExchange = PlsKeyExchange()
-                    keyExchange.PreKey = b'prekeyserver'
+                    crtObj = crypto.load_certificate(crypto.FILETYPE_PEM, self.C_Certs[0])
+                    pubKeyObject = crtObj.get_pubkey()
+                    pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, pubKeyObject)
+                    key = RSA.importKey(pubKeyString)
+                    public_key=key.publickey()
+                    cipher=public_key.encrypt(self.Pks,32)
+                    keyExchange.PreKey = cipher[0]
                     keyExchange.NoncePlusOne = self.C_Nonce + 1
                     self.hashresult.update(bytes(keyExchange.__serialize__()))
                     self.state = 2
