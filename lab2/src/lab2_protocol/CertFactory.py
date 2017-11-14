@@ -44,14 +44,6 @@ def getRootCert():
 
     return root_cert
 
-def geneStream(self,Nc,Ns,Pkc,Pks):
-    stream=hashlib.sha1()
-    stream.update("PLS1.0")
-    stream.update(Nc)
-    stream.update(Ns)
-    stream.update(Pkc)
-    stream.update(Pks)
-    
 
 
 
