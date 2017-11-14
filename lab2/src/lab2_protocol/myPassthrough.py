@@ -39,8 +39,9 @@ class PassThroughc1(StackingProtocol):
         self.Pkc=os.urandom(16)
         self.Pks = [] #from server, used to generate keys
         self.C_crtObj = crypto.load_certificate(crypto.FILETYPE_PEM, self.C_Certs[0])
-        self.PubK=self.C_crtObj.get_pubkey()
-        self.C_pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, self.PubK)
+        self.CPubK=self.C_crtObj.get_pubkey()
+        self.C_pubKeyString = crypto.dump_publickey(crypto.FILETYPE_PEM, self.CPubK)
+        self.C_privKey=getPrivateKeyForAddr()
         self.hashresult = hashlib.sha1()
 
     def connection_made(self, transport):
@@ -92,7 +93,8 @@ class PassThroughc1(StackingProtocol):
                 #check nc
                 if pkt.NoncePlusOne == self.C_Nonce + 1:
                     print("client: check NC+1")
-                    self.Pks = pkt.PreKey
+                    CpriK=RSA.importKey(self.C_privKey)
+                    self.Pks = CpriK.decrypt(pkt.PreKey)
                     hdshkdone = PlsHandshakeDone()
                     hdshkdone.ValidationHash = self.hashresult.digest()
                     self.state = 2
